@@ -36,6 +36,18 @@ for opening in result["openings"]:
 Coordinates are in the photo's own pixels. Pass `environment="staging"` to call the staging model, and your own
 `request_id` / `capture_id` to find a call again later.
 
+## AADML's ready-to-use models
+
+Models AADML runs for you, listed on the Models page ("Ready-to-use models"); you train nothing. Name the model by its
+key, shown in its "Use model" dialog:
+
+```python
+result = client.run("segformer-b0", "room.jpg")
+```
+
+Calls to ready-to-use models open when AADML's per-call charging is connected. Until then AADML answers 503, and
+`run` raises `ModelUnavailableError` with the reason.
+
 ## Chat models
 
 A chat model's project answers in OpenAI's chat completions format.

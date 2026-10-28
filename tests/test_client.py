@@ -189,3 +189,29 @@ def test_bad_settings_are_refused():
         client.predict(1, JPEG, environment="prod")
     with pytest.raises(errors.ConfigurationError):
         client.predict("../2", JPEG)
+
+
+def test_run_sends_a_photo_to_a_ready_to_use_model_by_its_key():
+    seen = {}
+
+    def handler(request):
+        seen.update(url=str(request.url), auth=request.headers["Authorization"])
+        return httpx.Response(200, json=ANSWER)
+
+    assert make(handler).run("segformer-b0", JPEG)["status"] == "ok"
+    assert seen == {"url": "https://aadml.test/api/training-data/v1/models/segformer-b0/predict", "auth": f"Bearer {KEY}"}
+    with pytest.raises(errors.ConfigurationError):
+        make(handler).run("../projects", JPEG)
+
+
+def test_a_model_closed_until_charging_is_said_once_not_retried(no_sleep):
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        return httpx.Response(503, json={"error": "Calls open when per-call charging is connected.", "field": None})
+
+    with pytest.raises(errors.ModelUnavailableError) as refused:
+        make(handler).run("segformer-b0", JPEG)
+    assert (len(calls), no_sleep, refused.value.retry_after) == (1, [], None)
+    assert "charging" in refused.value.message

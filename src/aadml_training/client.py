@@ -23,8 +23,6 @@ from .images import ImageInput, load
 
 DEFAULT_API_URL = "https://aadml.com"
 ENVIRONMENTS = ("staging", "production")
-#: Statuses that mean the request was NOT processed, so sending it again cannot do (or charge for) the work twice.
-_RETRY_STATUSES = (429, 503)
 _MAX_WAIT = 30.0
 
 
@@ -79,6 +77,16 @@ class Client:
         form = {"payload": json.dumps(payload)} if payload else None
         return self._send("POST", self._project_path(project_id, environment, "predict/"),
                           files={"file": (name, data, content_type)}, data=form).json()
+
+    def run(self, model: str, image: ImageInput) -> Dict[str, Any]:
+        """Send one photo to one of AADML's ready-to-use models (the Models page, "Use model"), named by its key, for
+        example ``"segformer-b0"``. Calls open when AADML's per-call charging is connected; until then AADML answers
+        503 and this raises ``ModelUnavailableError`` with the reason."""
+        if not isinstance(model, str) or not model or not all(c.isalnum() or c == "-" for c in model):
+            raise errors.ConfigurationError(f"model is a ready-to-use model's key, such as 'segformer-b0' (got {model!r}).")
+        data, content_type, name = load(image, timeout=self.timeout)
+        return self._send("POST", f"/api/training-data/v1/models/{model.lower()}/predict",
+                          files={"file": (name, data, content_type)}).json()
 
     # ── chat models ──────────────────────────────────────────────────────────────────────────────────────────────
     def chat(self, project_id: int, messages: List[Dict[str, Any]], *, environment: str = "production",
@@ -150,7 +158,9 @@ class Client:
             if answer.status_code < 400:
                 return answer
             failure = _error(answer)
-            if answer.status_code in _RETRY_STATUSES and attempt < self.max_retries:
+            # 503 is sent again only when AADML says when (a model starting); one closed for good says no time.
+            again = answer.status_code == 429 or (answer.status_code == 503 and failure.retry_after is not None)
+            if again and attempt < self.max_retries:
                 attempt += 1
                 time.sleep(min(failure.retry_after or 2 ** attempt, _MAX_WAIT))
                 continue
