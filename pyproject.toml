@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aadml-training"
+dynamic = ["version"]
+description = "Python SDK for AADML Training: call your trained photo and chat models from your own code."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Northrays" }]
+keywords = ["aadml", "machine learning", "computer vision", "llm", "inference", "sdk"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+dependencies = ["httpx>=0.27,<1"]
+
+[project.optional-dependencies]
+test = ["pytest==8.3.5"]
+
+[project.urls]
+Homepage = "https://aadml.com"
+Source = "https://github.com/sajid-the-backend-engineer/aadml-training"
+Issues = "https://github.com/sajid-the-backend-engineer/aadml-training/issues"
+Changelog = "https://github.com/sajid-the-backend-engineer/aadml-training/blob/main/CHANGELOG.md"
+
+[tool.hatch.version]
+path = "src/aadml_training/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aadml_training"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
