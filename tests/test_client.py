@@ -215,3 +215,80 @@ def test_a_model_closed_until_charging_is_said_once_not_retried(no_sleep):
         make(handler).run("segformer-b0", JPEG)
     assert (len(calls), no_sleep, refused.value.retry_after) == (1, [], None)
     assert "charging" in refused.value.message
+
+
+def test_dedicated_sends_a_photo_to_the_deployment_by_its_name():
+    seen = {}
+
+    def handler(request):
+        seen.update(url=str(request.url), auth=request.headers["Authorization"])
+        return httpx.Response(200, json=ANSWER)
+
+    assert make(handler).dedicated("walls-dev", JPEG)["status"] == "ok"
+    assert seen == {"url": "https://aadml.test/api/training-data/v1/dedicated/walls-dev/predict", "auth": f"Bearer {KEY}"}
+    for bad in ("../x", "Walls-Dev", "abc", "1walls", "a" * 31, None):
+        with pytest.raises(errors.ConfigurationError):
+            make(handler).dedicated(bad, JPEG)
+
+
+def test_a_dedicated_deployment_still_starting_is_sent_again_as_aadml_asks(no_sleep):
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        if len(calls) == 1:
+            return httpx.Response(503, headers={"Retry-After": "5"},
+                                  json={"error": "The deployment is starting. Try again shortly.", "field": None})
+        return httpx.Response(200, json=ANSWER)
+
+    assert make(handler).dedicated("walls-dev", JPEG)["status"] == "ok"
+    assert (len(calls), no_sleep) == (2, [5.0])
+
+
+def edge(handler, url="http://192.168.1.20:8080"):
+    from aadml_training import EdgeModel
+    return EdgeModel(url, http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+
+def test_an_edge_model_takes_the_photo_itself_with_no_key():
+    seen = {}
+
+    def handler(request):
+        seen.update(url=str(request.url), type=request.headers["Content-Type"], auth=request.headers.get("Authorization"),
+                    body=request.content)
+        return httpx.Response(200, json=ANSWER)
+
+    assert edge(handler).predict(JPEG)["status"] == "ok"
+    assert seen == {"url": "http://192.168.1.20:8080/invocations", "type": "image/jpeg", "auth": None, "body": JPEG}
+
+
+def test_an_edge_models_health_and_its_refusals():
+    calls = []
+
+    def handler(request):
+        calls.append(request.url.path)
+        if request.url.path == "/ping":
+            return httpx.Response(200, json={"status": "ok"})
+        return httpx.Response(415, json={"error": "Send a JPEG, PNG or WebP photo.", "field": "body"})
+
+    model = edge(handler)
+    assert model.ping() is True
+    with pytest.raises(errors.BadRequestError) as refused:
+        model.predict(PNG)
+    assert (refused.value.status_code, refused.value.field) == (415, "body")
+
+
+def test_an_edge_address_is_only_an_address():
+    from aadml_training import EdgeModel
+    for bad in ("192.168.1.20:8080", "ftp://x", "http://x:8080/invocations", "http://user:pw@x:8080", ""):
+        with pytest.raises(errors.ConfigurationError):
+            EdgeModel(bad)
+    assert Client(api_key=KEY).edge("http://box.local:8080").url == "http://box.local:8080"
+
+
+def test_an_unreachable_machine_is_a_connection_error():
+    def handler(request):
+        raise httpx.ConnectError("refused")
+
+    with pytest.raises(errors.ConnectionError):
+        edge(handler).predict(JPEG)

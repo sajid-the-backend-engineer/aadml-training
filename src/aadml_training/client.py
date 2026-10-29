@@ -4,6 +4,7 @@
 
     client = Client(api_key="...")                       # or set AADML_API_KEY
     walls = client.predict(project_id=22, image="room.jpg")
+    walls = client.dedicated("walls-dev", image="room.jpg")   # a Dedicated Deployment, by its name
     reply = client.chat(project_id=31, messages=[{"role": "user", "content": "How do I return an order?"}])
 
 The key is an app key made on the project's Deploy page (Connected apps); it is sent as ``Authorization: Bearer``
@@ -11,6 +12,7 @@ and never written to a log or a repr.
 """
 import json
 import os
+import re
 import time
 from contextlib import contextmanager
 from typing import Any, Dict, Iterator, List, Optional
@@ -24,6 +26,7 @@ from .images import ImageInput, load
 DEFAULT_API_URL = "https://aadml.com"
 ENVIRONMENTS = ("staging", "production")
 _MAX_WAIT = 30.0
+_DEDICATED_NAME = re.compile(r"[a-z][a-z0-9-]{4,29}")
 
 
 class Client:
@@ -87,6 +90,24 @@ class Client:
         data, content_type, name = load(image, timeout=self.timeout)
         return self._send("POST", f"/api/training-data/v1/models/{model.lower()}/predict",
                           files={"file": (name, data, content_type)}).json()
+
+    def dedicated(self, name: str, image: ImageInput) -> Dict[str, Any]:
+        """Send one photo to a Dedicated Deployment of your workspace (the Deployments page, "Dedicated"), named as you
+        named it, for example ``"walls-dev"``; the answer is the same as ``predict``'s. The app key needs access
+        to the deployment's project and environment (staging for Development, production for Production). One that is
+        still starting answers 503 with when to try again, and is sent again as AADML asks."""
+        if not isinstance(name, str) or not _DEDICATED_NAME.fullmatch(name):
+            raise errors.ConfigurationError(
+                f"name is a dedicated deployment's name: 5 to 30 lowercase letters, digits and hyphens (got {name!r}).")
+        data, content_type, file_name = load(image, timeout=self.timeout)
+        return self._send("POST", f"/api/training-data/v1/dedicated/{name}/predict",
+                          files={"file": (file_name, data, content_type)}).json()
+
+    def edge(self, url: str, *, timeout: Optional[float] = None) -> "EdgeModel":
+        """A model AADML runs on one of your own machines, at ``url`` (``http://<address>:<port>``): see
+        ``aadml_training.EdgeModel``. It is called on your network with no AADML key."""
+        from .edge import EdgeModel
+        return EdgeModel(url, timeout=self.timeout if timeout is None else timeout)
 
     # ── chat models ──────────────────────────────────────────────────────────────────────────────────────────────
     def chat(self, project_id: int, messages: List[Dict[str, Any]], *, environment: str = "production",

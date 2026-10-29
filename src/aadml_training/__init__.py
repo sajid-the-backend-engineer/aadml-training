@@ -7,10 +7,11 @@
 """
 from ._version import __version__
 from .client import DEFAULT_API_URL, Client
+from .edge import EdgeModel
 from .errors import (AADMLError, APIError, AuthenticationError, BadRequestError, ConfigurationError, ConnectionError,
                      ModelUnavailableError, NotFoundError, PayloadTooLargeError, PermissionDeniedError, RateLimitError,
                      ServerError)
 
-__all__ = ["Client", "DEFAULT_API_URL", "__version__", "AADMLError", "APIError", "AuthenticationError",
+__all__ = ["Client", "EdgeModel", "DEFAULT_API_URL", "__version__", "AADMLError", "APIError", "AuthenticationError",
            "BadRequestError", "ConfigurationError", "ConnectionError", "ModelUnavailableError", "NotFoundError",
            "PayloadTooLargeError", "PermissionDeniedError", "RateLimitError", "ServerError"]

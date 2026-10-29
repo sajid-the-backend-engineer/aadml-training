@@ -48,6 +48,26 @@ result = client.run("segformer-b0", "room.jpg")
 Calls to ready-to-use models open when AADML's per-call charging is connected. Until then AADML answers 503, and
 `run` raises `ModelUnavailableError` with the reason.
 
+## Dedicated Deployments
+
+A model of yours on a machine of its own (the Deployments page, "Dedicated"). Name the deployment as you named it;
+the app key needs access to its project and environment (staging for Development, production for Production):
+
+```python
+walls = client.dedicated("walls-dev", "room.jpg")
+```
+
+## Your own machines (Edge Devices)
+
+A model AADML runs on one of your machines answers on your network; no key is needed:
+
+```python
+from aadml_training import EdgeModel
+
+model = EdgeModel("http://192.168.1.20:8080")
+walls = model.predict("room.jpg")
+```
+
 ## Chat models
 
 A chat model's project answers in OpenAI's chat completions format.
